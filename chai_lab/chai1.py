@@ -78,6 +78,7 @@ from chai_lab.model.utils import center_random_augmentation
 from chai_lab.ranking.frames import get_frames_and_mask
 from chai_lab.ranking.rank import SampleRanking, get_scores, rank
 from chai_lab.utils.paths import chai1_component
+from chai_lab.utils.plot import plot_msa
 from chai_lab.utils.tensor_utils import move_data_to_device, set_seed, und_self
 from chai_lab.utils.typing import Float, typecheck
 
@@ -270,7 +271,7 @@ def run_inference(
         constraint_context=constraint_context,
     )
 
-    output_pdb_paths, _, _ = run_folding_on_context(
+    return run_folding_on_context(
         feature_context,
         output_dir=output_dir,
         num_trunk_recycles=num_trunk_recycles,
@@ -278,8 +279,6 @@ def run_inference(
         seed=seed,
         device=device,
     )
-
-    return output_pdb_paths
 
 
 def _bin_centers(min_bin: float, max_bin: float, no_bins: int) -> Tensor:
@@ -308,10 +307,16 @@ def run_folding_on_context(
     num_diffn_timesteps: int = 200,
     seed: int | None = None,
     device: torch.device | None = None,
-) -> tuple[list[Path], ConfidenceScores, list[SampleRanking]]:
+) -> tuple[list[Path], ConfidenceScores, list[SampleRanking], Path]:
     """
     Function for in-depth explorations.
     User completely controls folding inputs.
+
+    Returns:
+    - list of Path corresponding to folding outputs
+    - ConfidenceScores object
+    - SampleRanking data
+    - Path to plot of MSA coverage
     """
     # Set seed
     if seed is not None:
@@ -382,6 +387,9 @@ def run_folding_on_context(
     ## Run the features through the feature embedder
     ##
 
+    # for k, v in features.items():
+    #     print(k, v.shape, v.dtype)
+
     embedded_features = feature_embedding.forward(**features)
     token_single_input_feats = embedded_features["TOKEN"]
     token_pair_input_feats, token_pair_structure_input_features = embedded_features[
@@ -399,6 +407,56 @@ def run_folding_on_context(
     ##
     ## Run the inputs through the token input embedder
     ##
+
+    # V100 don't support bf16 kernels required by token_input_embedder, use fp32 instead
+    using_v100 = 'V100' in torch.cuda.get_device_name(device.index)
+    if using_v100:
+        token_single_input_feats = token_single_input_feats.float()
+
+        token_pair_input_feats = token_pair_input_feats.float()
+        token_pair_structure_input_features = token_pair_structure_input_features.float()
+
+        atom_single_input_feats = atom_single_input_feats.float()
+        atom_single_structure_input_features = atom_single_structure_input_features.float()
+
+        block_atom_pair_input_feats = block_atom_pair_input_feats.float()
+        block_atom_pair_structure_input_feats = block_atom_pair_structure_input_feats.float()
+
+        template_input_feats = template_input_feats.float()
+        msa_input_feats = msa_input_feats.float()
+
+        # convert all params to fp32
+        token_input_embedder = token_input_embedder.float()
+
+        # Override relevant operations to ensure float32
+        original_mm = torch.ops.aten.mm.default
+        original_bmm = torch.ops.aten.bmm.default
+        original_sdpea = torch.ops.aten._scaled_dot_product_efficient_attention.default
+        original_scatter = torch.Tensor.scatter_
+        original_scatter_reduce = torch.ops.aten.scatter_reduce.two
+
+        def float32_mm(a, b):
+            return original_mm(a.float(), b.float())
+
+        def float32_bmm(a, b):
+            return original_bmm(a.float(), b.float())
+
+        def float32_sdpea(*args, **kwargs):
+            float_args = [arg.float() if isinstance(arg, torch.Tensor) else arg for arg in args]
+            float_kwargs = {k: v.float() if isinstance(v, torch.Tensor) else v for k, v in kwargs.items()}
+            return original_sdpea(*float_args, **float_kwargs)
+
+        def float32_scatter_(self, dim, index, src, reduce=None):
+            return original_scatter(self.float(), dim, index, src.float(), reduce)
+
+        def float32_scatter_reduce(self, dim, index, src, reduce_type, *args, **kwargs):
+            return original_scatter_reduce(self.float(), dim, index, src.float(), reduce_type, *args, **kwargs)
+
+        torch.ops.aten.mm.default = float32_mm
+        torch.ops.aten.bmm.default = float32_bmm
+        torch.ops.aten._scaled_dot_product_efficient_attention.default = float32_sdpea
+        torch.Tensor.scatter_ = float32_scatter_
+        torch.ops.aten.scatter_reduce.two = float32_scatter_reduce
 
     token_input_embedder_outputs: tuple[Tensor, ...] = token_input_embedder.forward(
         token_single_input_feats=token_single_input_feats,
@@ -609,6 +667,14 @@ def run_folding_on_context(
     ## Write the outputs
     ##
 
+    # Write a MSA plot
+    output_dir.mkdir(parents=True, exist_ok=True)
+    msa_plot_path = plot_msa(
+        input_tokens=feature_context.structure_context.token_residue_type,
+        msa_tokens=feature_context.msa_context.tokens,
+        out_fname=output_dir / "msa_depth.pdf",
+    )
+
     output_paths: list[Path] = []
     ranking_data: list[SampleRanking] = []
 
@@ -676,4 +742,4 @@ def run_folding_on_context(
             **scores,
         )
 
-    return output_paths, confidence_scores, ranking_data
+    return inputs, output_paths, confidence_scores, ranking_data, msa_plot_path
