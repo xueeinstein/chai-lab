@@ -8,3 +8,5 @@ for fasta_file in $FASTA_DIR/*.fasta; do
     echo ">>> Processing $fasta_file -> $output_dir"
     CUDA_VISIBLE_DEVICES=$GPU_ID python examples/predict_structure.py $fasta_file $output_dir
 done
+
+python examples/collect_scores.py $OUTPUT_DIR
