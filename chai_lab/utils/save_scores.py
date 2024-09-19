@@ -14,7 +14,7 @@ def save_ranking_debug(output_pdb_paths, ranking_data, output_dir):
             "interface_ptm": ranking.ptm_scores.interface_ptm.item(),
             "complex_plddt": ranking.plddt_scores.complex_plddt.item(),
             "total_clashes": ranking.clash_scores.total_clashes.item(),
-            "has_clashes": ranking.clash_scores.has_clashes.item(),
+            "has_clashes": ranking.clash_scores.has_inter_chain_clashes.item(),
         }
         ranking_scores.append(score)
     

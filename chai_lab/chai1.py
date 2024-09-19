@@ -417,10 +417,10 @@ def run_folding_on_context(
         token_single_input_feats = token_single_input_feats.float()
 
         token_pair_input_feats = token_pair_input_feats.float()
-        token_pair_structure_input_features = token_pair_structure_input_features.float()
+        token_pair_structure_input_feats = token_pair_structure_input_feats.float()
 
         atom_single_input_feats = atom_single_input_feats.float()
-        atom_single_structure_input_features = atom_single_structure_input_features.float()
+        atom_single_structure_input_feats = atom_single_structure_input_feats.float()
 
         block_atom_pair_input_feats = block_atom_pair_input_feats.float()
         block_atom_pair_structure_input_feats = block_atom_pair_structure_input_feats.float()
