@@ -31,7 +31,7 @@ def esm_model(model_name: str, device):
     if len(_esm_model) == 0:
         # lazy loading of the model
         _esm_model.append(
-            EsmModel.from_pretrained(model_name, cache_dir=esm_cache_folder)
+            EsmModel.from_pretrained(model_name, cache_dir=esm_cache_folder, local_files_only=True)
         )
 
     [model] = _esm_model
@@ -51,7 +51,7 @@ def _get_esm_contexts_for_sequences(
     from transformers import EsmTokenizer
 
     model_name = "facebook/esm2_t36_3B_UR50D"
-    tokenizer = EsmTokenizer.from_pretrained(model_name, cache_dir=esm_cache_folder)
+    tokenizer = EsmTokenizer.from_pretrained(model_name, cache_dir=esm_cache_folder, local_files_only=True)
 
     seq2embedding_context = {}
 
