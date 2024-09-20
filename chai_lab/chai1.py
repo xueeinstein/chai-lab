@@ -1,4 +1,6 @@
 # %%
+import os
+import sys
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -385,6 +387,44 @@ def run_folding_on_context(
     trunk = load_exported(f"{model_size}/trunk.pt2", device)
     diffusion_module = load_exported(f"{model_size}/diffusion_module.pt2", device)
     confidence_head = load_exported(f"{model_size}/confidence_head.pt2", device)
+
+    if os.environ.get('PRINT_COMPUTE_GRAPH', False):
+        # Redirect print_readable output to file
+        os.makedirs('exports', exist_ok=True)
+        with open('exports/feature_embedding.py', 'w') as f:
+            import sys
+            original_stdout = sys.stdout
+            sys.stdout = f
+            feature_embedding.print_readable()
+            sys.stdout = original_stdout
+
+        with open('exports/token_input_embedder_readable.py', 'w') as f:
+            import sys
+            original_stdout = sys.stdout
+            sys.stdout = f
+            token_input_embedder.print_readable()
+            sys.stdout = original_stdout
+
+        with open('exports/trunk.py', 'w') as f:
+            import sys
+            original_stdout = sys.stdout
+            sys.stdout = f
+            trunk.print_readable()
+            sys.stdout = original_stdout
+
+        with open('exports/diffusion_module.py', 'w') as f:
+            import sys
+            original_stdout = sys.stdout
+            sys.stdout = f
+            diffusion_module.print_readable()
+            sys.stdout = original_stdout
+
+        with open('exports/confidence_head.py', 'w') as f:
+            import sys
+            original_stdout = sys.stdout
+            sys.stdout = f
+            confidence_head.print_readable()
+            sys.stdout = original_stdout
 
     ##
     ## Run the features through the feature embedder
