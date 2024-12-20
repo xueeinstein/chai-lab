@@ -304,11 +304,11 @@ class ConfidenceScores:
 def run_folding_on_context(
     feature_context: AllAtomFeatureContext,
     output_dir: Path,
-    # expose some params for easy tweaking
     num_trunk_recycles: int = 3,
     num_diffn_timesteps: int = 200,
     seed: int | None = None,
     device: torch.device | None = None,
+    models: dict | None = None,
 ) -> tuple[list[Path], ConfidenceScores, list[SampleRanking], Path]:
     """
     Function for in-depth explorations.
@@ -380,13 +380,19 @@ def run_folding_on_context(
     # Model is size-specific
     model_size = min(x for x in AVAILABLE_MODEL_SIZES if n_actual_tokens <= x)
 
-    feature_embedding = load_exported(f"{model_size}/feature_embedding.pt2", device)
-    token_input_embedder = load_exported(
-        f"{model_size}/token_input_embedder.pt2", device
-    )
-    trunk = load_exported(f"{model_size}/trunk.pt2", device)
-    diffusion_module = load_exported(f"{model_size}/diffusion_module.pt2", device)
-    confidence_head = load_exported(f"{model_size}/confidence_head.pt2", device)
+    # Use provided models or load them
+    if models is None:
+        feature_embedding = load_exported(f"{model_size}/feature_embedding.pt2", device)
+        token_input_embedder = load_exported(f"{model_size}/token_input_embedder.pt2", device)
+        trunk = load_exported(f"{model_size}/trunk.pt2", device)
+        diffusion_module = load_exported(f"{model_size}/diffusion_module.pt2", device)
+        confidence_head = load_exported(f"{model_size}/confidence_head.pt2", device)
+    else:
+        feature_embedding = models['feature_embedding']
+        token_input_embedder = models['token_input_embedder']
+        trunk = models['trunk']
+        diffusion_module = models['diffusion_module']
+        confidence_head = models['confidence_head']
 
     if os.environ.get('PRINT_COMPUTE_GRAPH', False):
         # Redirect print_readable output to file
